@@ -40,6 +40,10 @@ class Vector2 {
   scale(value) {
     return new Vector2(this.x * value, this.y * value);
   }
+  distanceTo(point) {
+    const delta = this.subtract(point);
+    return delta.length();
+  }
 }
 
 function getCanvasSizeAsVector2(ctx) {
@@ -57,6 +61,16 @@ function createCircle(ctx, center, radius) {
   ctx.beginPath();
   ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
   ctx.fill();
+}
+
+function snapToGrid(x, delta_x) {
+  if (delta_x > 0) {
+    return Math.ceil(x);
+  }
+  if (delta_x < 0) {
+    return Math.floor(x);
+  }
+  return x;
 }
 
 function renderGrid(ctx, point02) {
@@ -84,15 +98,49 @@ function renderGrid(ctx, point02) {
     ctx.strokeStyle = COLORS.MAGENTA;
     createLine(ctx, point01, point02);
 
-    const nextPoint = rayCastStep(point01, point02);
-    ctx.fillStyle = COLORS.GREEN;
+    const nextPoint = rayCastStep(ctx, point01, point02);
+    ctx.strokeStyle = COLORS.MAGENTA;
     createCircle(ctx, nextPoint, 0.2);
     createLine(ctx, point02, nextPoint);
   }
 }
 
-function rayCastStep(point01, point02) {
-  const nextPoint = point02.subtract(point01).normalize().addition(point02);
+function rayCastStep(ctx, point01, point02) {
+  // point01 = (x1, y1)
+  // point02 = (x2, y2)
+  // y = k*x + c or x = (y - c) / k
+  // | y1 = k*x1 + c
+  // | y2 = k*x2 + c
+  //
+  // c = y1 - k*x1
+  // y2 = k*x2 - k*x1 + y1
+  // y2 - y1 = k*(x2 - x1)
+  // 
+  // delta_y = y2 - y1
+  // delta_x = x2 - x1
+  // k = delta_y / delta_x
+  const delta = point02.subtract(point01);
+  let nextPoint = point02;
+  if (delta.x !== 0) {
+    const k = delta.y / delta.x;
+    const c = point01.y - k * point01.x;
+    const xOfTheNextPoint = snapToGrid(point02.x, delta.x);
+    const yOfTheNextPoint = k * xOfTheNextPoint + c;
+    nextPoint = new Vector2(xOfTheNextPoint, yOfTheNextPoint);
+    // ctx.fillStyle = COLORS.RED;
+    // createCircle(ctx, new Vector2(xOfTheNextPoint, yOfTheNextPoint), 0.1);
+
+    if (k !== 0) {
+      const yOfTheNextPoint2 = snapToGrid(point02.y, delta.y);
+      const xOfTheNextPoint2 = (yOfTheNextPoint2 - c) / k;
+      const nextPoint2 = new Vector2(xOfTheNextPoint2, yOfTheNextPoint2);
+      if (point02.distanceTo(nextPoint2) < point02.distanceTo(nextPoint)) {
+        nextPoint = nextPoint2;
+      }
+      // ctx.fillStyle = COLORS.GREEN;
+      // createCircle(ctx, new Vector2(xOfTheNextPoint2, yOfTheNextPoint2), 0.1);
+    }
+  }
   return nextPoint;
 }
 
